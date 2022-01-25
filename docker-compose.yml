@@ -5,53 +5,59 @@ services:
     image: mariadb:10.5
     restart: always
     environment:
-      - MYSQL_DATABASE=photoview
-      - MYSQL_USER=photoview
-      - MYSQL_PASSWORD=photosecret
-      - MYSQL_RANDOM_ROOT_PASSWORD=1
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_RANDOM_ROOT_PASSWORD=${MYSQL_RANDOM_ROOT_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
     networks:
-      - proxy
+      - internal-photoview
 
   photoview:
     image: viktorstrate/photoview:2
+    container_name: photoview
     restart: always
-    ports:
-      - "8000:80"
     depends_on:
       - db
-
     environment:
       - PHOTOVIEW_DATABASE_DRIVER=mysql
-      - PHOTOVIEW_MYSQL_URL=photoview:photosecret@tcp(db)/photoview
+      - PHOTOVIEW_MYSQL_URL=${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(db)/photoview
       - PHOTOVIEW_LISTEN_IP=photoview
       - PHOTOVIEW_LISTEN_PORT=80
       - PHOTOVIEW_MEDIA_CACHE=/app/cache
-      
-      # Optional: If you are using Samba/CIFS-Share and experience problems with "directory not found"
-      # Enable the following Godebug
-      # - GODEBUG=asyncpreemptoff=1
-      
-      
       # Optional: To enable map related features, you need to create a mapbox token.
       # A token can be generated for free here https://account.mapbox.com/access-tokens/
       # It's a good idea to limit the scope of the token to your own domain, to prevent others from using it.
       # - MAPBOX_TOKEN=<YOUR TOKEN HERE>
-
     volumes:
       - api_cache:/app/cache
-
       # Change This: to the directory where your photos are located on your server.
       # If the photos are located at `/home/user/photos`, then change this value
       # to the following: `/home/user/photos:/photos:ro`.
       # You can mount multiple paths, if your photos are spread across multiple directories.
-      - ./photos_path:/photos:ro
+      - /var/syncthing:/photos:ro
     networks:
+      - internal-photoview
       - proxy
     labels:
       - traefik.enable=true
       - traefik.http.routers.photo.rule=Host(`photo.${DOMAIN}`)
+
+  syncthing:
+    image: syncthing/syncthing
+    container_name: syncthing
+    hostname: syncthing
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /var/syncthing/st-sync:/var/syncthing
+    ports:
+      - 8384:8384
+      - 22000:22000/tcp
+      - 22000:22000/udp
+    restart: unless-stopped
 
 volumes:
   db_data:
@@ -60,3 +66,5 @@ volumes:
 networks:
   proxy:
     external: true
+  internal-photoview:
+    external: false
