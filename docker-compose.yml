@@ -47,7 +47,8 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.photo.rule=Host(`photo.${DOMAIN}`)
-
+      - traefik.http.routers.photo.middlewares=localIpOnly@file
+  
   syncthing:
     image: syncthing/syncthing
     container_name: syncthing
